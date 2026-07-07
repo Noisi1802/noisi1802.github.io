@@ -9,6 +9,7 @@ export async function screenHome(_params, outlet) {
   const [defs, history] = await Promise.all([getDefinitions(), getHistory()]);
   const stats = aggregate(history);
   defs.sort((a, b) => a.title.localeCompare(b.title, 'fr'));
+  const recent = [...history].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 5);
 
   outlet.innerHTML = `
     <header class="app-bar">
@@ -35,10 +36,19 @@ export async function screenHome(_params, outlet) {
           ? defs.map(cardHtml).join('')
           : '<li class="empty">Aucune séance. Importe un <code>.md</code> ou dépose un fichier dans <code>sessions/</code>.</li>'}
       </ul>
+
+      ${recent.length ? `
+        <div class="section-head"><h2 class="section-head__title">Dernières séances</h2></div>
+        <ul class="history">
+          ${recent.map(historyHtml).join('')}
+        </ul>` : ''}
     </main>`;
 
   outlet.querySelectorAll('[data-slug]').forEach((el) => {
     el.addEventListener('click', () => go(`/session/${el.dataset.slug}`));
+  });
+  outlet.querySelectorAll('[data-history]').forEach((el) => {
+    el.addEventListener('click', () => go(`/summary/${encodeURIComponent(el.dataset.history)}`));
   });
 
   const input = outlet.querySelector('#import');
@@ -56,6 +66,16 @@ function statItem(value, key) {
     <span class="stats__val">${escapeHtml(value)}</span>
     <span class="stats__key">${key}</span>
   </div>`;
+}
+
+function historyHtml(h) {
+  const date = new Date(h.id).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  const meta = [fmtDist(h.distance_m), fmtDuration(h.duration_s), h.hr.avg ? `${h.hr.avg} bpm` : null]
+    .filter(Boolean).join(' · ');
+  return `<li class="history__item" data-history="${escapeHtml(h.id)}" role="button" tabindex="0">
+    <span class="history__title">${escapeHtml(h.session_title)}</span>
+    <span class="history__meta">${escapeHtml(date)} — ${escapeHtml(meta)}</span>
+  </li>`;
 }
 
 function cardHtml(s) {

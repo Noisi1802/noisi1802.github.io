@@ -35,3 +35,5 @@ export const deleteDefinition = (slug) => run('definitions', 'readwrite', (os) =
 
 export const putHistory = (entry) => run('history', 'readwrite', (os) => os.put(entry));
 export const getHistory = () => run('history', 'readonly', (os) => os.getAll());
+export const getHistoryEntry = (id) => run('history', 'readonly', (os) => os.get(id));
+export const deleteHistory = (id) => run('history', 'readwrite', (os) => os.delete(id));

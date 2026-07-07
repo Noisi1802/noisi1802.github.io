@@ -3,6 +3,7 @@ import { createRouter } from './ui/router.js';
 import { screenHome } from './ui/screen-home.js';
 import { screenDetail } from './ui/screen-detail.js';
 import { screenLive } from './ui/screen-live.js';
+import { screenSummary } from './ui/screen-summary.js';
 import { getDefinitions, putDefinition } from './data/store.js';
 import { parseSession, slugify } from './data/session-parser.js';
 
@@ -22,6 +23,7 @@ const router = createRouter([
   ['/', screenHome],
   ['/session/:slug', screenDetail],
   ['/live/:slug', screenLive],
+  ['/summary/:id', screenSummary],
 ], outlet);
 
 seedSessions()

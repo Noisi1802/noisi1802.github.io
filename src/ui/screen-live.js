@@ -4,7 +4,8 @@
 //
 // Lot 2 : la source de données est le SIMULATEUR. Au Lot 3, on remplacera
 // createSimulator par les vraies sources BLE poussant dans le même bus.
-import { getDefinition } from '../data/store.js';
+import { getDefinition, putHistory } from '../data/store.js';
+import { buildSummary } from '../stats/summary.js';
 import { createMetricBus } from '../ble/normalizer.js';
 import { createSimulator } from '../ble/simulator.js';
 import { createSessionEngine } from '../engine/session-engine.js';
@@ -111,11 +112,13 @@ export async function screenLive({ slug }, outlet) {
     render();
   }
 
-  function onFinish() {
+  async function onFinish() {
     sim.stop();
     recorder.stop();
-    // Lot 4 : construire le résumé + écran post-séance. Pour l'instant : retour au détail.
-    go(`/session/${slug}`);
+    if (!recorder.samples.length) { go(`/session/${slug}`); return; }
+    const entry = buildSummary(session, recorder.samples, engine.snapshot().globalMs);
+    try { await putHistory(entry); go(`/summary/${encodeURIComponent(entry.id)}`); }
+    catch (e) { console.error('Sauvegarde historique échouée :', e); go(`/session/${slug}`); }
   }
 
   const unsubBus = bus.subscribe((m) => { engine.pushDistance(m.dist); render(); });
