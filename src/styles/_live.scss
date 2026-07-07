@@ -1,0 +1,181 @@
+.live {
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--sp-3) var(--sp-4) calc(var(--sp-4) + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+
+  &__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+  }
+
+  &__quit {
+    background: none;
+    border: 0;
+    color: var(--c-txt);
+    font-size: 1.8rem;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  &__global {
+    font-size: 1.6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__counter { color: var(--c-muted); font-variant-numeric: tabular-nums; }
+
+  &__section {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-3);
+  }
+
+  &__section-name { font-size: 1.15rem; font-weight: 600; }
+  &__next { color: var(--c-muted); font-size: 0.9rem; text-align: right; }
+
+  &__progress {
+    height: 6px;
+    background: var(--c-panel-2);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  &__progress-fill {
+    display: block;
+    height: 100%;
+    background: var(--c-accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.2s linear;
+  }
+
+  &__zone {
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: var(--sp-2);
+    border-radius: var(--radius-sm);
+    color: #fff;
+
+    &[data-state='low'] { background: var(--c-zone-low); }
+    &[data-state='in'] { background: var(--c-zone-in); }
+    &[data-state='high'] { background: var(--c-zone-high); }
+  }
+}
+
+.hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--sp-4) 0;
+
+  &__val {
+    font-size: clamp(4rem, 26vw, 9rem);
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  &__u { font-size: 0.28em; font-weight: 500; color: var(--c-muted); }
+
+  &__key {
+    margin-top: var(--sp-2);
+    color: var(--c-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.9rem;
+  }
+}
+
+.tiles {
+  display: grid;
+  gap: var(--sp-2);
+
+  &--1 { grid-template-columns: 1fr; }
+  &--3 { grid-template-columns: repeat(3, 1fr); }
+  &--6 { grid-template-columns: repeat(3, 1fr); }
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: var(--sp-3) var(--sp-2);
+
+  &__key {
+    font-size: 0.68rem;
+    color: var(--c-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &__val {
+    font-size: 1.7rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__u { font-size: 0.55em; font-weight: 400; color: var(--c-muted); }
+}
+
+// Mode complet : la grille de 6 tuiles occupe la place, pas de héro géant.
+.live[data-mode='complet'] .tiles { flex: 1; align-content: center; }
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: var(--sp-2);
+
+  &__btn {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--c-txt);
+    background: var(--c-panel-2);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    padding: var(--sp-4) var(--sp-2);
+    cursor: pointer;
+    touch-action: manipulation;
+
+    &--main { background: var(--c-accent-2); border-color: transparent; color: #fff; }
+    &:active { transform: translateY(1px); }
+    &:disabled { opacity: 0.5; }
+  }
+}
+
+.modes {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-1);
+
+  &__btn {
+    font-size: 0.8rem;
+    color: var(--c-muted);
+    background: none;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2);
+    cursor: pointer;
+    text-transform: capitalize;
+
+    &.is-active { color: var(--c-txt); border-color: var(--c-accent-2); background: var(--c-panel-2); }
+  }
+}

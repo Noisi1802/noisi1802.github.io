@@ -1,0 +1,32 @@
+// Jetons de thème sous forme de CSS custom properties (thème sombre par défaut,
+// contrainte UX rameur : fort contraste). Réutilisées partout via var(--…).
+:root {
+  --c-bg: #0e1116;
+  --c-panel: #161b22;
+  --c-panel-2: #1c232d;
+  --c-border: #2a323d;
+  --c-txt: #e6edf3;
+  --c-muted: #8b98a6;
+  --c-accent: #3fb950;
+  --c-accent-2: #2f81f7;
+  --c-warn: #d29922;
+  --c-err: #f85149;
+
+  // Zones FC
+  --c-zone-low: #2f81f7;
+  --c-zone-in: #3fb950;
+  --c-zone-high: #f85149;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
