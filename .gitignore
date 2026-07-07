@@ -1,0 +1,15 @@
+# IDE
+.idea/
+*.iml
+
+# Certificats auto-signés du spike BLE (Lot 0)
+tools/.certs/
+
+# Node
+node_modules/
+npm-debug.log*
+.DS_Store
+
+# Build (Vite — lots suivants)
+dist/
+.vite/
