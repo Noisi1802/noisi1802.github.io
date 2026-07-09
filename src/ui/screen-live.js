@@ -2,16 +2,21 @@
 // contrôles gros doigts, indicateur de zone FC. 4 modes (perf/cardio/complet/zen)
 // changeables à la volée (cf. PROJET.md §6.1).
 //
-// Lot 2 : la source de données est le SIMULATEUR. Au Lot 3, on remplacera
-// createSimulator par les vraies sources BLE poussant dans le même bus.
+// Sources de données : capteurs BLE réels (rameur FTMS + FC Polar) branchés via
+// des boutons « Connecter » explicites, OU le simulateur (mode démo, repli sans
+// matériel). Toutes poussent dans le même bus normalisé.
 import { getDefinition, putHistory } from '../data/store.js';
 import { buildSummary } from '../stats/summary.js';
 import { createMetricBus } from '../ble/normalizer.js';
 import { createSimulator } from '../ble/simulator.js';
+import { createRowerSource } from '../ble/rower.js';
+import { createHeartSource } from '../ble/heart.js';
 import { createSessionEngine } from '../engine/session-engine.js';
 import { createRecorder } from '../engine/recorder.js';
 import { fmtDuration, fmtPace, fmtDist, escapeHtml } from './format.js';
 import { go } from './router.js';
+
+const BLE_OK = typeof navigator !== 'undefined' && !!navigator.bluetooth;
 
 const MODES = ['perf', 'cardio', 'complet', 'zen'];
 
@@ -42,9 +47,12 @@ export async function screenLive({ slug }, outlet) {
   }
 
   let mode = session.display;
+  let demo = !BLE_OK; // sans Web Bluetooth (desktop) → démo par défaut
   const bus = createMetricBus();
   const engine = createSessionEngine(session);
   const sim = createSimulator(bus);
+  const rower = createRowerSource(bus);
+  const heart = createHeartSource(bus);
   const recorder = createRecorder(engine, bus);
 
   outlet.innerHTML = template(session);
@@ -61,6 +69,11 @@ export async function screenLive({ slug }, outlet) {
     heroKey: outlet.querySelector('[data-hero-key]'),
     tiles: outlet.querySelector('[data-tiles]'),
     pause: outlet.querySelector('[data-pause]'),
+    connectRower: outlet.querySelector('[data-connect-rower]'),
+    connectHr: outlet.querySelector('[data-connect-hr]'),
+    demo: outlet.querySelector('[data-demo]'),
+    dotRower: outlet.querySelector('[data-dot-rower]'),
+    dotHr: outlet.querySelector('[data-dot-hr]'),
   };
 
   function render() {
@@ -121,6 +134,44 @@ export async function screenLive({ slug }, outlet) {
     catch (e) { console.error('Sauvegarde historique échouée :', e); go(`/session/${slug}`); }
   }
 
+  // --- Sources de données ------------------------------------------------
+  function setDemo(on) {
+    demo = on;
+    els.demo.classList.toggle('is-active', on);
+    if (on) sim.start(); else sim.stop();
+  }
+
+  function bindSource(source, btn, dot, label) {
+    source.onStatus((state, detail) => {
+      dot.dataset.state = state;
+      btn.classList.toggle('is-active', state === 'connected');
+      if (state === 'connected') { btn.textContent = detail || label; setDemo(false); }
+      else if (state === 'reconnecting') btn.textContent = `repli… (${detail})`;
+      else if (state === 'failed') btn.textContent = `${label} ✕`;
+      btn.prepend(dot);
+    });
+    btn.addEventListener('click', async () => {
+      if (source.connected) { source.disconnect(); btn.textContent = label; btn.prepend(dot); return; }
+      try { await source.connect(); }
+      catch (e) {
+        if (e && e.name === 'NotFoundError') return; // sélection annulée
+        console.error(`Connexion ${label} échouée :`, e);
+        dot.dataset.state = 'failed';
+      }
+    });
+  }
+
+  if (BLE_OK) {
+    bindSource(rower, els.connectRower, els.dotRower, 'Rameur');
+    bindSource(heart, els.connectHr, els.dotHr, 'FC');
+  } else {
+    els.connectRower.disabled = true;
+    els.connectHr.disabled = true;
+  }
+  els.demo.addEventListener('click', () => setDemo(!demo));
+  if (demo) setDemo(true);
+
+  // --- Moteur / boucle ---------------------------------------------------
   const unsubBus = bus.subscribe((m) => { engine.pushDistance(m.dist); render(); });
   const unsubEngine = engine.subscribe((type) => {
     if (type === 'section-auto' || type === 'section-change') buzz();
@@ -130,9 +181,9 @@ export async function screenLive({ slug }, outlet) {
 
   els.pause.addEventListener('click', () => {
     const st = engine.status;
-    if (st === 'idle') { engine.start(); sim.start(); recorder.start(); }
-    else if (st === 'running') { engine.pause(); sim.stop(); recorder.pause(); }
-    else if (st === 'paused') { engine.resume(); sim.start(); recorder.resume(); }
+    if (st === 'idle') { engine.start(); recorder.start(); if (demo) sim.start(); }
+    else if (st === 'running') { engine.pause(); recorder.pause(); if (demo) sim.stop(); }
+    else if (st === 'paused') { engine.resume(); recorder.resume(); if (demo) sim.start(); }
   });
   outlet.querySelector('[data-prev]').addEventListener('click', () => engine.prev());
   outlet.querySelector('[data-next]').addEventListener('click', () => engine.next());
@@ -147,6 +198,8 @@ export async function screenLive({ slug }, outlet) {
       unsubEngine();
       sim.stop();
       recorder.stop();
+      rower.disconnect();
+      heart.disconnect();
       if (engine.status !== 'finished') engine.finish();
     },
   };
@@ -178,6 +231,12 @@ function template() {
     </div>
     <div class="live__progress"><span class="live__progress-fill" data-progress></span></div>
     <div class="live__zone" data-zone hidden></div>
+
+    <div class="sources">
+      <button class="sources__btn" data-connect-rower><span class="sources__dot" data-dot-rower></span>Rameur</button>
+      <button class="sources__btn" data-connect-hr><span class="sources__dot" data-dot-hr></span>FC</button>
+      <button class="sources__btn" data-demo>Démo</button>
+    </div>
 
     <div class="hero" data-hero>
       <span class="hero__val" data-hero-val>—</span>
