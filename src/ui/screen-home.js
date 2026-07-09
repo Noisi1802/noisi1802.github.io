@@ -13,7 +13,7 @@ export async function screenHome(_params, outlet) {
 
   outlet.innerHTML = `
     <header class="app-bar">
-      <h1 class="app-bar__title">RAM</h1>
+      <h1 class="app-bar__title">rame rame</h1>
       <span class="app-bar__sub">Rowing Assistant</span>
     </header>
     <main class="screen">
