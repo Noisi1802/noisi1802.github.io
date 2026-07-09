@@ -14,6 +14,7 @@ import { createHeartSource } from '../ble/heart.js';
 import { createSessionEngine } from '../engine/session-engine.js';
 import { createRecorder } from '../engine/recorder.js';
 import { fmtDuration, fmtPace, fmtDist, escapeHtml } from './format.js';
+import { initAudio, cue } from './feedback.js';
 import { go } from './router.js';
 
 const BLE_OK = typeof navigator !== 'undefined' && !!navigator.bluetooth;
@@ -128,11 +129,27 @@ export async function screenLive({ slug }, outlet) {
   async function onFinish() {
     sim.stop();
     recorder.stop();
+    releaseWakeLock();
     if (!recorder.samples.length) { go(`/session/${slug}`); return; }
     const entry = buildSummary(session, recorder.samples, engine.snapshot().globalMs);
     try { await putHistory(entry); go(`/summary/${encodeURIComponent(entry.id)}`); }
     catch (e) { console.error('Sauvegarde historique échouée :', e); go(`/session/${slug}`); }
   }
+
+  // --- Wake Lock (écran allumé pendant l'effort) -------------------------
+  let wakeLock = null;
+  async function acquireWakeLock() {
+    if (!('wakeLock' in navigator) || wakeLock) return;
+    try { wakeLock = await navigator.wakeLock.request('screen'); }
+    catch { wakeLock = null; }
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  }
+  function onVisibility() {
+    if (document.visibilityState === 'visible' && engine.status === 'running') acquireWakeLock();
+  }
+  document.addEventListener('visibilitychange', onVisibility);
 
   // --- Sources de données ------------------------------------------------
   function setDemo(on) {
@@ -174,16 +191,16 @@ export async function screenLive({ slug }, outlet) {
   // --- Moteur / boucle ---------------------------------------------------
   const unsubBus = bus.subscribe((m) => { engine.pushDistance(m.dist); render(); });
   const unsubEngine = engine.subscribe((type) => {
-    if (type === 'section-auto' || type === 'section-change') buzz();
+    if (type === 'section-auto' || type === 'section-change') cue();
     if (type === 'finished') { onFinish(); return; }
     render();
   });
 
   els.pause.addEventListener('click', () => {
     const st = engine.status;
-    if (st === 'idle') { engine.start(); recorder.start(); if (demo) sim.start(); }
-    else if (st === 'running') { engine.pause(); recorder.pause(); if (demo) sim.stop(); }
-    else if (st === 'paused') { engine.resume(); recorder.resume(); if (demo) sim.start(); }
+    if (st === 'idle') { initAudio(); engine.start(); recorder.start(); acquireWakeLock(); if (demo) sim.start(); }
+    else if (st === 'running') { engine.pause(); recorder.pause(); releaseWakeLock(); if (demo) sim.stop(); }
+    else if (st === 'paused') { engine.resume(); recorder.resume(); acquireWakeLock(); if (demo) sim.start(); }
   });
   outlet.querySelector('[data-prev]').addEventListener('click', () => engine.prev());
   outlet.querySelector('[data-next]').addEventListener('click', () => engine.next());
@@ -196,6 +213,8 @@ export async function screenLive({ slug }, outlet) {
     cleanup() {
       unsubBus();
       unsubEngine();
+      document.removeEventListener('visibilitychange', onVisibility);
+      releaseWakeLock();
       sim.stop();
       recorder.stop();
       rower.disconnect();
@@ -203,10 +222,6 @@ export async function screenLive({ slug }, outlet) {
       if (engine.status !== 'finished') engine.finish();
     },
   };
-}
-
-function buzz() {
-  if (navigator.vibrate) navigator.vibrate(120);
 }
 
 function tileHtml(d) {
