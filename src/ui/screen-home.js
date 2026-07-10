@@ -42,6 +42,8 @@ export async function screenHome(_params, outlet) {
         <ul class="history">
           ${recent.map(historyHtml).join('')}
         </ul>` : ''}
+
+      <footer class="app-version">${__APP_VERSION__}</footer>
     </main>`;
 
   outlet.querySelectorAll('[data-slug]').forEach((el) => {

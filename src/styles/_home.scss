@@ -63,3 +63,12 @@
 
   &:active { border-color: var(--c-accent-2); }
 }
+
+.app-version {
+  display: block;
+  margin-top: var(--sp-5);
+  text-align: center;
+  color: var(--c-muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
