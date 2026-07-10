@@ -26,9 +26,8 @@ export async function screenHome(_params, outlet) {
 
       <div class="section-head">
         <h2 class="section-head__title">Séances</h2>
-        <label class="btn btn--ghost">
-          Importer<input id="import" type="file" accept=".md,text/markdown" hidden>
-        </label>
+        <button class="btn btn--ghost" id="import-btn">Importer</button>
+        <input id="import" class="sr-only" type="file" accept=".md,.txt,.markdown,text/markdown,text/plain,*/*">
       </div>
 
       <ul class="card-list">
@@ -54,12 +53,19 @@ export async function screenHome(_params, outlet) {
   });
 
   const input = outlet.querySelector('#import');
+  const btn = outlet.querySelector('#import-btn');
+  btn.addEventListener('click', () => input.click());
   input.addEventListener('change', async () => {
     const file = input.files && input.files[0];
     if (!file) return;
-    const session = parseSession(await file.text());
-    await putDefinition(session);
-    go(`/session/${session.slug}`);
+    try {
+      const text = await file.text();
+      const session = parseSession(text);
+      await putDefinition(session);
+      go(`/session/${session.slug}`);
+    } catch (e) {
+      console.error('Import échoué :', e);
+    }
   });
 }
 
@@ -86,8 +92,8 @@ function cardHtml(s) {
     <div class="card__body">
       <h3 class="card__title">${escapeHtml(s.title)}</h3>
       <p class="card__meta">${escapeHtml(meta)}</p>
-      ${s.description ? `<p class="card__desc">${escapeHtml(s.description)}</p>` : ''}
-    </div>
+      ${s.description ? `<p class="card__desc">${escapeHtml(s.description)}</p>` : ''}`
+    + `</div>
     <span class="card__go" aria-hidden="true">▶</span>
   </li>`;
 }
