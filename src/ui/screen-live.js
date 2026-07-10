@@ -21,6 +21,8 @@ const BLE_OK = typeof navigator !== 'undefined' && !!navigator.bluetooth;
 
 const MODES = ['perf', 'cardio', 'complet', 'zen'];
 
+const LONG_PRESS_MS = 1500;
+
 // Quelles métriques afficher par mode. `hero: null` → grille égale (mode complet).
 const LAYOUT = {
   perf:    { hero: 'pace', tiles: ['spm', 'hr', 'sdist'] },
@@ -48,7 +50,7 @@ export async function screenLive({ slug }, outlet) {
   }
 
   let mode = session.display;
-  let demo = !BLE_OK; // sans Web Bluetooth (desktop) → démo par défaut
+  let demo = !BLE_OK;
   const bus = createMetricBus();
   const engine = createSessionEngine(session);
   const sim = createSimulator(bus);
@@ -56,7 +58,7 @@ export async function screenLive({ slug }, outlet) {
   const heart = createHeartSource(bus);
   const recorder = createRecorder(engine, bus);
 
-  outlet.innerHTML = template(session);
+  outlet.innerHTML = template();
   const els = {
     root: outlet.querySelector('.live'),
     global: outlet.querySelector('[data-global]'),
@@ -70,12 +72,15 @@ export async function screenLive({ slug }, outlet) {
     heroKey: outlet.querySelector('[data-hero-key]'),
     tiles: outlet.querySelector('[data-tiles]'),
     pause: outlet.querySelector('[data-pause]'),
+    quit: outlet.querySelector('[data-quit]'),
     connectRower: outlet.querySelector('[data-connect-rower]'),
     connectHr: outlet.querySelector('[data-connect-hr]'),
     demo: outlet.querySelector('[data-demo]'),
     dotRower: outlet.querySelector('[data-dot-rower]'),
     dotHr: outlet.querySelector('[data-dot-hr]'),
   };
+
+  let sessionStarted = false;
 
   function render() {
     const m = bus.latest;
@@ -103,10 +108,12 @@ export async function screenLive({ slug }, outlet) {
 
     applyZone(m.hr);
 
-    els.pause.textContent = s.status === 'idle' ? 'Démarrer'
-      : s.status === 'running' ? 'Pause'
-      : s.status === 'paused' ? 'Reprendre'
-      : 'Terminé';
+    if (longPressActive) return;
+
+    if (s.status === 'idle') els.pause.textContent = 'Démarrer';
+    else if (s.status === 'running') els.pause.textContent = 'Pause';
+    else if (s.status === 'paused') els.pause.textContent = 'Reprendre';
+    else els.pause.textContent = 'Terminé';
     els.pause.disabled = s.status === 'finished';
   }
 
@@ -126,15 +133,82 @@ export async function screenLive({ slug }, outlet) {
     render();
   }
 
-  async function onFinish() {
+  async function finishAndSave() {
     sim.stop();
     recorder.stop();
     releaseWakeLock();
+    const snap = engine.snapshot();
+    if (engine.status !== 'finished') engine.finish();
     if (!recorder.samples.length) { go(`/session/${slug}`); return; }
-    const entry = buildSummary(session, recorder.samples, engine.snapshot().globalMs);
+    const entry = buildSummary(session, recorder.samples, snap.globalMs);
     try { await putHistory(entry); go(`/summary/${encodeURIComponent(entry.id)}`); }
     catch (e) { console.error('Sauvegarde historique échouée :', e); go(`/session/${slug}`); }
   }
+
+  // --- Appui long sur Pause → Terminer -----------------------------------
+  let longPressTimer = null;
+  let longPressActive = false;
+  let longPressStart = 0;
+
+  function startLongPress() {
+    if (engine.status === 'idle' || engine.status === 'finished') return;
+    longPressActive = true;
+    longPressStart = Date.now();
+    els.pause.textContent = 'Terminer';
+    els.pause.classList.add('is-finishing');
+    longPressTimer = setTimeout(() => {
+      longPressActive = false;
+      els.pause.classList.remove('is-finishing');
+      els.pause.style.removeProperty('--hold-pct');
+      finishAndSave();
+    }, LONG_PRESS_MS);
+  }
+
+  function cancelLongPress() {
+    if (!longPressActive) return;
+    clearTimeout(longPressTimer);
+    longPressActive = false;
+    els.pause.classList.remove('is-finishing');
+    els.pause.style.removeProperty('--hold-pct');
+    render();
+  }
+
+  function updateLongPressProgress() {
+    if (!longPressActive) return;
+    const elapsed = Date.now() - longPressStart;
+    const pct = Math.min(100, (elapsed / LONG_PRESS_MS) * 100);
+    els.pause.style.setProperty('--hold-pct', `${pct}%`);
+    requestAnimationFrame(updateLongPressProgress);
+  }
+
+  els.pause.addEventListener('pointerdown', (e) => {
+    if (e.button && e.button !== 0) return;
+    if (engine.status === 'running' || engine.status === 'paused') {
+      startLongPress();
+      requestAnimationFrame(updateLongPressProgress);
+    }
+  });
+  els.pause.addEventListener('pointerup', cancelLongPress);
+  els.pause.addEventListener('pointerleave', cancelLongPress);
+  els.pause.addEventListener('pointercancel', cancelLongPress);
+
+  els.pause.addEventListener('click', () => {
+    if (longPressActive) { cancelLongPress(); return; }
+    const st = engine.status;
+    if (st === 'idle') { initAudio(); engine.start(); recorder.start(); acquireWakeLock(); sessionStarted = true; if (demo) sim.start(); }
+    else if (st === 'running') { engine.pause(); recorder.pause(); releaseWakeLock(); if (demo) sim.stop(); }
+    else if (st === 'paused') { engine.resume(); recorder.resume(); acquireWakeLock(); if (demo) sim.start(); }
+  });
+
+  // --- Confirmation avant quitter ----------------------------------------
+  els.quit.addEventListener('click', () => {
+    if (sessionStarted && engine.status !== 'finished') {
+      if (!confirm('Quitter la séance ? Les données seront sauvegardées.')) return;
+      finishAndSave();
+    } else {
+      go(`/session/${slug}`);
+    }
+  });
 
   // --- Wake Lock (écran allumé pendant l'effort) -------------------------
   let wakeLock = null;
@@ -171,7 +245,7 @@ export async function screenLive({ slug }, outlet) {
       if (source.connected) { source.disconnect(); btn.textContent = label; btn.prepend(dot); return; }
       try { await source.connect(); }
       catch (e) {
-        if (e && e.name === 'NotFoundError') return; // sélection annulée
+        if (e && e.name === 'NotFoundError') return;
         console.error(`Connexion ${label} échouée :`, e);
         dot.dataset.state = 'failed';
       }
@@ -192,25 +266,19 @@ export async function screenLive({ slug }, outlet) {
   const unsubBus = bus.subscribe((m) => { engine.pushDistance(m.dist); render(); });
   const unsubEngine = engine.subscribe((type) => {
     if (type === 'section-auto' || type === 'section-change') cue();
-    if (type === 'finished') { onFinish(); return; }
+    if (type === 'finished') { finishAndSave(); return; }
     render();
   });
 
-  els.pause.addEventListener('click', () => {
-    const st = engine.status;
-    if (st === 'idle') { initAudio(); engine.start(); recorder.start(); acquireWakeLock(); if (demo) sim.start(); }
-    else if (st === 'running') { engine.pause(); recorder.pause(); releaseWakeLock(); if (demo) sim.stop(); }
-    else if (st === 'paused') { engine.resume(); recorder.resume(); acquireWakeLock(); if (demo) sim.start(); }
-  });
   outlet.querySelector('[data-prev]').addEventListener('click', () => engine.prev());
   outlet.querySelector('[data-next]').addEventListener('click', () => engine.next());
-  outlet.querySelector('[data-quit]').addEventListener('click', () => go(`/session/${slug}`));
   outlet.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
 
   setMode(mode);
 
   return {
     cleanup() {
+      clearTimeout(longPressTimer);
       unsubBus();
       unsubEngine();
       document.removeEventListener('visibilitychange', onVisibility);

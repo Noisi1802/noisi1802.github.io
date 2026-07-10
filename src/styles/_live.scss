@@ -194,8 +194,27 @@
     padding: var(--sp-4) var(--sp-2);
     cursor: pointer;
     touch-action: manipulation;
+    position: relative;
+    overflow: hidden;
 
     &--main { background: var(--c-accent-2); border-color: transparent; color: #fff; }
+
+    // Progression appui long → terminer
+    &--main.is-finishing {
+      background: var(--c-err);
+
+      &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: var(--c-panel-2);
+        transform: scaleX(calc(1 - var(--hold-pct, 0) / 100));
+        transform-origin: right;
+        transition: none;
+        pointer-events: none;
+      }
+    }
+
     &:active { transform: translateY(1px); }
     &:disabled { opacity: 0.5; }
   }
