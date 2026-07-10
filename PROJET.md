@@ -228,3 +228,60 @@ pendant la séance.
 - ✅ Écran Live : **métrique héro + secondaires**, 4 modes (`perf`/`cardio`/`complet`/`zen`), champ `display` par séance. Défaut `perf` (allure /500m en héro).
 - ⏳ **Lot 0** (protocole Merach R50) : à lancer dès réception du rameur (demain). Détermine `rower.js` et la fiabilité réelle allure/puissance.
 - ⏳ Rameur reçu demain → objectif : tout formalisé avant, spike prêt à lancer.
+
+---
+
+## 11. Fonctionnalité « Retour au calme » (cohérence cardiaque) — EN COURS
+
+> Nouvelle section de fin de séance : le rameur s'arrête, l'écran passe en mode
+> récup et guide un exercice de respiration pour **faire redescendre la FC sous un
+> seuil cible**. Objectif physio : expiration plus longue que l'inspiration →
+> active le parasympathique → chute rapide du rythme cardiaque.
+
+### Décisions actées (2026-07-10)
+- ✅ **Nouveau type de cible de section : `hr`** (finit quand FC < seuil). S'ajoute
+  à `duration` / `distance` / `manual` dans `session-engine.js` (`checkSectionEnd`).
+- ✅ **Seuil = dynamique `max-40`** : FC max atteinte dans la séance − 40 bpm.
+  Aucun profil utilisateur requis, s'adapte à l'intensité réelle.
+  (Le parser gère aussi `cible_fc: 100` fixe — gratuit, non prioritaire.)
+- ✅ **Définie dans le Markdown** : une section `##` avec `cible_fc:`, cohérent
+  avec le modèle « séance = suite de sections ». Ajoutable à n'importe quelle séance.
+- ✅ **`duree` sur une section `hr` = plafond de sécurité** (auto-fin au plus tôt :
+  FC atteinte *ou* temps écoulé), pas la cible principale.
+
+### Syntaxe Markdown cible
+```markdown
+## Retour au calme
+- cible_fc: max-40      # descend sous (FC max de la séance − 40)
+- duree: 5min           # plafond de sécurité (filet si la FC ne descend pas)
+- note: respire, 4s inspire / 6s expire
+```
+→ `target = { type: 'hr', mode: 'dynamic', delta: 40 }` (et `cap` = durée si fournie).
+
+### Découpage
+- **Lot A — Moteur (le « quoi »)** — *À FAIRE EN PREMIER, REPRENDRE ICI*
+  - `session-parser.js` : prop `cible_fc:` → cible `hr` (+ `max-40` dynamique et
+    valeur fixe). `duree` devient plafond quand la cible est `hr`.
+  - `session-engine.js` : ajouter `pushHr()` (symétrique de `pushDistance()`, le
+    `hr` existe déjà dans le bus normalisé) + gestion cible `hr` dans `checkSectionEnd`.
+  - **Anti-rebond** : fin déclenchée seulement si FC ≤ seuil pendant ~3 s continues
+    (éviter de couper la récup sur un sample bruité).
+  - **`max` figé à l'entrée dans la section** (via recorder/bus), pas recalculé en
+    direct sinon le seuil bouge sous les pieds de l'utilisateur.
+  - `simulator.js` : faire **décroître la FC** dans une section `hr`, sinon l'écran
+    n'est pas testable sans ceinture (cf. §5, engine testable en simulé).
+- **Lot B — Écran « retour au calme » (le « comment »)**
+  - Rendu spécial quand la section courante est de type `hr` : masquer les tuiles,
+    afficher le **Breath Pacer** (cercle `@keyframes` CSS pur, 4 s inspire / 6 s
+    expire, zéro `!important`) + **jauge FC rouge→vert** avec repère du seuil.
+  - Gros bouton « terminer » (skip manuel) conservé, `cue()` sonore à l'atteinte.
+  - **Sans ceinture FC connectée** : pas d'auto-fin → on s'appuie sur le plafond
+    `duree` + skip manuel. À afficher clairement (« connecte ta ceinture »).
+- **Lot C — Seuil personnalisé** *(optionnel, plus tard)* : mini-profil (âge →
+  FCmax = 220−âge, ou FCmax saisie) dans le store → débloque `55%` / Karvonen.
+- **Lot D — Résumé** *(optionnel)* : afficher la **Heart Rate Recovery** dans le
+  summary (FC au début de la récup → temps pour repasser sous le seuil).
+
+### État
+- ⏳ **Lot A** : à démarrer (parser + engine + simulateur), validable en console/tests
+  avant l'UI. Puis Lot B. Lots C/D à trancher plus tard.
